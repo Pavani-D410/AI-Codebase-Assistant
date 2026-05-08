@@ -7,3 +7,6 @@ sentence-transformers
 faiss-cpu
 GitPython
 tiktoken
+torch
+transformers
+huggingface-hub
