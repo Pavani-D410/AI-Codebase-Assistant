@@ -88,12 +88,12 @@ st.markdown(
 # =========================
 
 st.markdown(
-    '<div class="main-title">💻 CodeRAG AI</div>',
+    '<div class="main-title">🚀 RepoSage</div>',
     unsafe_allow_html=True
 )
 
 st.markdown(
-    '<div class="subtitle">AI-powered GitHub Repository Assistant</div>',
+    '<div class="subtitle">AI-powered GitHub Repository Intelligence Assistant</div>',
     unsafe_allow_html=True
 )
 
