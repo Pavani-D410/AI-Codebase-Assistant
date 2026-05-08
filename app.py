@@ -6,7 +6,6 @@ from rag_pipeline import (
     generate_documentation
 )
 
-
 # =========================
 # Page Config
 # =========================
@@ -14,29 +13,96 @@ from rag_pipeline import (
 st.set_page_config(
     page_title="CodeRAG AI",
     page_icon="💻",
-    layout="wide"
+    layout="centered"
 )
 
+# =========================
+# Minimal Clean CSS
+# =========================
+
+st.markdown(
+    """
+    <style>
+
+.stApp {
+    background-color: #F8FAFC;
+}
+
+.block-container {
+    padding-top: 4rem;
+    max-width: 850px;
+}
+
+.main-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 0.2rem;
+}
+
+.subtitle {
+    color: #6B7280;
+    font-size: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stTextInput input {
+    border-radius: 10px !important;
+    border: 1px solid #D1D5DB !important;
+    padding: 10px !important;
+}
+
+.stButton > button {
+    width: 100%;
+    border-radius: 10px;
+    background-color: #2563EB;
+    color: white;
+    border: none;
+    font-weight: 600;
+    padding: 0.55rem;
+}
+
+.stButton > button:hover {
+    background-color: #1D4ED8;
+    color: white;
+}
+
+.stChatInput textarea {
+    font-size: 15px !important;
+    min-height: 30px !important;
+}
+
+footer {
+    visibility: hidden;
+}
+
+</style>
+    """,
+    unsafe_allow_html=True
+)
 
 # =========================
 # Header
 # =========================
 
-st.title("💻 CodeRAG AI")
-
 st.markdown(
-    "AI-powered GitHub Repository Assistant"
+    '<div class="main-title">💻 CodeRAG AI</div>',
+    unsafe_allow_html=True
 )
 
+st.markdown(
+    '<div class="subtitle">AI-powered GitHub Repository Assistant</div>',
+    unsafe_allow_html=True
+)
 
 # =========================
 # Repository Input
 # =========================
 
 repo_url = st.text_input(
-    "Enter GitHub Repository URL"
+    "GitHub Repository URL",
+    placeholder="https://github.com/user/repository"
 )
-
 
 # =========================
 # Session State
@@ -46,62 +112,88 @@ if "vectorstore" not in st.session_state:
 
     st.session_state.vectorstore = None
 
-
 # =========================
-# Process Repository
-# =========================
-
-if st.button("Process Repository"):
-
-    with st.spinner("Processing repository..."):
-
-        vectorstore = process_repository(repo_url)
-
-        st.session_state.vectorstore = vectorstore
-
-        st.success(
-            "Repository processed successfully!"
-        )
-
-
-# =========================
-# Documentation Generator
+# Buttons
 # =========================
 
-if st.session_state.vectorstore:
+col1, col2 = st.columns([1, 1])
+
+with col1:
+
+    if st.button("Process Repository"):
+
+        if repo_url.strip() == "":
+
+            st.warning(
+                "Please enter a repository URL."
+            )
+
+        else:
+
+            with st.spinner(
+                "Processing repository..."
+            ):
+
+                vectorstore = process_repository(
+                    repo_url
+                )
+
+                st.session_state.vectorstore = (
+                    vectorstore
+                )
+
+                st.success(
+                    "Repository processed successfully!"
+                )
+
+with col2:
 
     if st.button("Generate Documentation"):
 
-        with st.spinner(
-            "Generating documentation..."
-        ):
+        if st.session_state.vectorstore:
 
-            docs = generate_documentation(
-                st.session_state.vectorstore
-            )
+            with st.spinner(
+                "Generating documentation..."
+            ):
 
-            st.subheader(
-                "📘 Repository Documentation"
-            )
+                docs = generate_documentation(
+                    st.session_state.vectorstore
+                )
 
-            st.markdown(docs)
+                st.markdown("---")
 
+                st.subheader(
+                    "📘 Repository Documentation"
+                )
+
+                st.markdown(docs)
 
 # =========================
-# Chatbot Questions
+# Compact Workflow
+# =========================
+
+st.markdown(
+    """
+✓ Enter Repository URL  
+✓ Process Repository  
+✓ Generate Documentation  
+✓ Ask Questions 
+"""
+)
+
+# =========================
+# Chat Section
 # =========================
 
 question = st.chat_input(
     "Ask questions about the repository..."
 )
 
-
 if question and st.session_state.vectorstore:
 
     with st.chat_message("user"):
 
         st.markdown(question)
-
 
     with st.chat_message("assistant"):
 
