@@ -110,7 +110,15 @@ def load_vectorstore(repo_name):
 # Ask Question
 # =========================
 
-def ask_question(vectorstore, question):
+def ask_question(
+    vectorstore,
+    question,
+    chat_history=None
+):
+
+    if chat_history is None:
+
+        chat_history = []
 
     retriever = vectorstore.as_retriever(
         search_kwargs={"k": 4}
@@ -119,6 +127,10 @@ def ask_question(vectorstore, question):
     docs = retriever.invoke(
         question
     )
+
+    # =========================
+    # Build Repository Context
+    # =========================
 
     context = ""
 
@@ -137,6 +149,25 @@ def ask_question(vectorstore, question):
 
 """
 
+    # =========================
+    # Build Conversation Context
+    # =========================
+
+    conversation_context = ""
+
+    for chat in chat_history:
+
+        role = chat["role"]
+        content = chat["content"]
+
+        conversation_context += (
+            f"{role}: {content}\n"
+        )
+
+    # =========================
+    # Prompt
+    # =========================
+
     prompt = f"""
 You are an AI GitHub Repository Assistant.
 
@@ -145,7 +176,10 @@ Use ONLY the provided repository context.
 If answer is not found in context, say exactly:
 "I could not find relevant information in the repository."
 
-Context:
+Previous Conversation:
+{conversation_context}
+
+Repository Context:
 {context}
 
 Question:
@@ -166,16 +200,37 @@ Instructions:
     response_text = response.content
 
     # =========================
+    # No Answer Detection
+    # =========================
+
+    no_answer_phrases = [
+
+        "could not find",
+        "not available",
+        "no relevant information",
+        "not mentioned",
+        "insufficient context",
+        "does not contain",
+        "repository does not",
+        "not found in the repository"
+
+    ]
+
+    is_no_answer = any(
+        phrase in response_text.lower()
+        for phrase in no_answer_phrases
+    )
+
+    # =========================
     # No Relevant Answer Found
     # =========================
 
-    if (
-        "could not find" in response_text.lower()
-        or
-        "not available" in response_text.lower()
-    ):
+    if is_no_answer:
 
-        final_answer = response_text
+        final_answer = (
+            "I could not find relevant "
+            "information in the repository."
+        )
 
     # =========================
     # Relevant Answer Found
