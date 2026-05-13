@@ -1,4 +1,5 @@
 import os
+import streamlit as st
 
 from dotenv import load_dotenv
 
@@ -23,12 +24,17 @@ from langchain_groq import ChatGroq
 load_dotenv()
 
 # =========================
-# Embedding Model
+# Cached Embedding Model
 # =========================
 
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+@st.cache_resource
+def get_embeddings():
+
+    return HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
+
+embeddings = get_embeddings()
 
 # =========================
 # Groq LLM
@@ -82,9 +88,10 @@ def create_vectorstore(documents, repo_name):
     return vectorstore
 
 # =========================
-# Load Vectorstore
+# Cached Vectorstore Loader
 # =========================
 
+@st.cache_resource
 def load_vectorstore(repo_name):
 
     vectorstore_path = (
@@ -135,8 +142,8 @@ You are an AI GitHub Repository Assistant.
 
 Use ONLY the provided repository context.
 
-If answer is not found in context, say:
-'I could not find relevant information in the repository.'
+If answer is not found in context, say exactly:
+"I could not find relevant information in the repository."
 
 Context:
 {context}
@@ -156,8 +163,28 @@ Instructions:
         prompt
     )
 
-    final_answer = f"""
-{response.content}
+    response_text = response.content
+
+    # =========================
+    # No Relevant Answer Found
+    # =========================
+
+    if (
+        "could not find" in response_text.lower()
+        or
+        "not available" in response_text.lower()
+    ):
+
+        final_answer = response_text
+
+    # =========================
+    # Relevant Answer Found
+    # =========================
+
+    else:
+
+        final_answer = f"""
+{response_text}
 
 ---
 # 📚 Source Citations

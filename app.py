@@ -21,6 +21,14 @@ st.set_page_config(
 )
 
 # =========================
+# Response Cache
+# =========================
+
+if "response_cache" not in st.session_state:
+
+    st.session_state.response_cache = {}
+
+# =========================
 # Clean UI CSS
 # =========================
 
@@ -71,11 +79,6 @@ st.markdown(
     .stButton > button:hover {
         background-color: #1D4ED8;
         color: white;
-    }
-
-    .stChatInput textarea {
-        font-size: 15px !important;
-        min-height: 80px !important;
     }
 
     footer {
@@ -161,21 +164,35 @@ if process_clicked:
                         f"git clone {repo_url} {repo_path}"
                     )
 
-                # Load repository documents
-                documents = load_repository(
-                    repo_path,
-                    repo_name
+                # Vectorstore path
+                vectorstore_path = (
+                    f"vectorstores/{repo_name}"
                 )
 
-                # Create vectorstore
-                create_vectorstore(
-                    documents,
-                    repo_name
-                )
+                # Create vectorstore only if not exists
+                if not os.path.exists(
+                    vectorstore_path
+                ):
 
-                st.success(
-                    f"{repo_name} processed successfully!"
-                )
+                    documents = load_repository(
+                        repo_path,
+                        repo_name
+                    )
+
+                    create_vectorstore(
+                        documents,
+                        repo_name
+                    )
+
+                    st.success(
+                        f"{repo_name} processed successfully!"
+                    )
+
+                else:
+
+                    st.info(
+                        f"{repo_name} already processed. Loaded from cache."
+                    )
 
             except Exception as e:
 
@@ -195,7 +212,6 @@ if os.path.exists("vectorstores"):
         "vectorstores"
     )
 
-# Add placeholder option
 repo_options = (
     ["-- Select Repository --"]
     + available_repos
@@ -206,7 +222,6 @@ selected_repo = st.selectbox(
     repo_options
 )
 
-# Prevent automatic selection
 if selected_repo == "-- Select Repository --":
 
     selected_repo = None
@@ -279,16 +294,44 @@ if question and selected_repo:
 
             try:
 
-                # Load selected vectorstore
-                vectorstore = load_vectorstore(
-                    selected_repo
+                # Create unique cache key
+                cache_key = (
+                    f"{selected_repo}:{question}"
                 )
 
-                # Ask question
-                answer = ask_question(
-                    vectorstore,
-                    question
-                )
+                # =========================
+                # Response Cache Check
+                # =========================
+
+                if cache_key in st.session_state.response_cache:
+
+                    answer = (
+                        st.session_state.response_cache[
+                            cache_key
+                        ]
+                    )
+
+                    st.info(
+                        "⚡ Answer loaded from cache"
+                    )
+
+                else:
+
+                    # Load vectorstore
+                    vectorstore = load_vectorstore(
+                        selected_repo
+                    )
+
+                    # Generate answer
+                    answer = ask_question(
+                        vectorstore,
+                        question
+                    )
+
+                    # Store response in cache
+                    st.session_state.response_cache[
+                        cache_key
+                    ] = answer
 
                 st.markdown(answer)
 
