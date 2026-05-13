@@ -1,337 +1,171 @@
 import os
 
-from git import Repo
-
 from dotenv import load_dotenv
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import (
+    RecursiveCharacterTextSplitter
+)
 
-from langchain_community.vectorstores import FAISS
+from langchain_huggingface import (
+    HuggingFaceEmbeddings
+)
 
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.vectorstores import (
+    FAISS
+)
 
 from langchain_groq import ChatGroq
 
-from langchain_core.documents import Document
-
+# =========================
+# Load Environment Variables
+# =========================
 
 load_dotenv()
 
-
 # =========================
-# Embeddings Model
+# Embedding Model
 # =========================
 
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
-
 # =========================
 # Groq LLM
 # =========================
 
 llm = ChatGroq(
-    model_name="llama-3.3-70b-versatile"
+    api_key=os.getenv("GROQ_API_KEY"),
+    model_name="llama-3.1-8b-instant"
 )
 
-
 # =========================
-# Clone GitHub Repository
-# =========================
-
-def clone_repo(repo_url):
-
-    repo_name = repo_url.split("/")[-1]
-
-    local_path = f"repos/{repo_name}"
-
-
-    if not os.path.exists(local_path):
-
-        Repo.clone_from(repo_url, local_path)
-
-    return local_path
-
-
-# =========================
-# Load Source Code Files
+# Split Documents
 # =========================
 
-def load_code_files(repo_path):
+def split_documents(documents):
 
-    documents = []
-
-
-    allowed_extensions = [
-
-        ".py",
-        ".js",
-        ".jsx",
-        ".ts",
-        ".tsx",
-        ".java",
-        ".cpp",
-        ".c",
-        ".h",
-        ".hpp",
-        ".cs",
-        ".go",
-        ".rs",
-        ".php",
-        ".rb",
-        ".swift",
-        ".kt",
-        ".scala",
-        ".dart",
-        ".sh",
-        ".bash",
-        ".zsh",
-        ".sql",
-        ".html",
-        ".css",
-        ".scss",
-        ".sass",
-        ".vue",
-        ".svelte",
-        ".xml",
-        ".json",
-        ".yaml",
-        ".yml",
-        ".toml",
-        ".ini",
-        ".cfg",
-        ".md",
-        ".txt",
-        ".rst",
-        ".tf",
-        ".graphql",
-        ".gql"
-    ]
-
-
-    for root, dirs, files in os.walk(repo_path):
-
-        # Ignore unnecessary folders
-        dirs[:] = [
-
-            d for d in dirs
-
-            if d not in [
-
-                ".git",
-                "node_modules",
-                "venv",
-                "__pycache__",
-                "dist",
-                "build",
-                ".next",
-                ".idea",
-                ".vscode",
-                "coverage",
-                "target",
-                "bin",
-                "obj",
-                ".dart_tool",
-                ".gradle",
-                ".terraform"
-            ]
-        ]
-
-
-        for file in files:
-
-            if any(
-                file.endswith(ext)
-                for ext in allowed_extensions
-            ):
-
-                file_path = os.path.join(root, file)
-
-                try:
-
-                    # Skip huge files
-                    if (
-                        os.path.getsize(file_path)
-                        > 1_000_000
-                    ):
-                        continue
-
-
-                    with open(
-                        file_path,
-                        "r",
-                        encoding="utf-8",
-                        errors="ignore"
-                    ) as f:
-
-                        code = f.read()
-
-                        documents.append(
-                            Document(
-                                page_content=code,
-                                metadata={
-                                    "source": file_path
-                                }
-                            )
-                        )
-
-                except:
-
-                    pass
-
-
-    return documents
-
-
-# =========================
-# Create Vector Database
-# =========================
-
-def create_vectorstore(documents):
-
-    splitter = RecursiveCharacterTextSplitter(
+    text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200
     )
 
-    chunks = splitter.split_documents(documents)
+    split_docs = text_splitter.split_documents(
+        documents
+    )
 
+    return split_docs
+
+# =========================
+# Create Vectorstore
+# =========================
+
+def create_vectorstore(documents, repo_name):
+
+    split_docs = split_documents(
+        documents
+    )
 
     vectorstore = FAISS.from_documents(
-        chunks,
-        embeddings
+        documents=split_docs,
+        embedding=embeddings
+    )
+
+    vectorstore_path = (
+        f"vectorstores/{repo_name}"
+    )
+
+    vectorstore.save_local(
+        vectorstore_path
     )
 
     return vectorstore
 
-
 # =========================
-# Process Repository
+# Load Vectorstore
 # =========================
 
-def process_repository(repo_url):
+def load_vectorstore(repo_name):
 
-    repo_name = repo_url.split("/")[-1]
+    vectorstore_path = (
+        f"vectorstores/{repo_name}"
+    )
 
-    vector_path = f"vectorstore/{repo_name}"
-
-
-    # =========================
-    # Load Existing Vector DB
-    # =========================
-
-    if os.path.exists(vector_path):
-
-        vectorstore = FAISS.load_local(
-            vector_path,
-            embeddings,
-            allow_dangerous_deserialization=True
-        )
-
-        return vectorstore
-
-
-    # =========================
-    # Clone Repo
-    # =========================
-
-    repo_path = clone_repo(repo_url)
-
-
-    # =========================
-    # Load Code Files
-    # =========================
-
-    docs = load_code_files(repo_path)
-
-
-    # =========================
-    # Create Vector DB
-    # =========================
-
-    vectorstore = create_vectorstore(docs)
-
-
-    # =========================
-    # Save Vector DB
-    # =========================
-
-    vectorstore.save_local(vector_path)
-
+    vectorstore = FAISS.load_local(
+        vectorstore_path,
+        embeddings,
+        allow_dangerous_deserialization=True
+    )
 
     return vectorstore
 
-
 # =========================
-# Ask Questions
+# Ask Question
 # =========================
 
 def ask_question(vectorstore, question):
 
-    docs_with_scores = (
-        vectorstore.similarity_search_with_score(
-            question,
-            k=4
-        )
+    retriever = vectorstore.as_retriever(
+        search_kwargs={"k": 4}
     )
 
-
-    # No docs
-    if not docs_with_scores:
-
-        return (
-            "No relevant repository "
-            "information found."
-        )
-
-
-    # Hallucination reduction
-    best_score = docs_with_scores[0][1]
-
-
-    if best_score > 1.5:
-
-        return (
-            "This question appears unrelated "
-            "to the repository.\n\n"
-            "Please ask repository-specific questions."
-        )
-
-
-    docs = [
-        doc for doc, score in docs_with_scores
-    ]
-
-
-    context = "\n\n".join(
-        [doc.page_content for doc in docs]
+    docs = retriever.invoke(
+        question
     )
 
+    context = ""
+
+    citations = ""
+
+    for doc in docs:
+
+        context += (
+            doc.page_content + "\n\n"
+        )
+
+        citations += f"""
+📦 Repository: {doc.metadata.get('repo_name', 'Unknown')}
+📄 File: {doc.metadata.get('file_name', 'Unknown')}
+📁 Path: {doc.metadata.get('file_path', 'Unknown')}
+
+"""
 
     prompt = f"""
-You are an AI Code Documentation Assistant.
+You are an AI GitHub Repository Assistant.
 
-Answer ONLY using repository context.
+Use ONLY the provided repository context.
 
-If answer is unavailable,
-say:
-'I could not find relevant information.'
-
-Explain clearly and professionally.
+If answer is not found in context, say:
+'I could not find relevant information in the repository.'
 
 Context:
 {context}
 
 Question:
 {question}
+
+Instructions:
+1. Give repository-aware answers
+2. Mention file names when relevant
+3. Avoid hallucinations
+4. Keep answers professional
+5. Explain clearly
 """
 
+    response = llm.invoke(
+        prompt
+    )
 
-    response = llm.invoke(prompt)
+    final_answer = f"""
+{response.content}
 
-    return response.content
+---
+# 📚 Source Citations
 
+{citations}
+"""
+
+    return final_answer
 
 # =========================
 # Generate Documentation
@@ -340,40 +174,40 @@ Question:
 def generate_documentation(vectorstore):
 
     retriever = vectorstore.as_retriever(
-        search_kwargs={"k": 10}
+        search_kwargs={"k": 8}
     )
 
     docs = retriever.invoke(
-        "Explain the overall repository"
+        "Explain the repository architecture and functionality"
     )
 
-    context = "\n\n".join(
-        [doc.page_content for doc in docs]
-    )
+    context = ""
 
+    for doc in docs:
+
+        context += (
+            doc.page_content + "\n\n"
+        )
 
     prompt = f"""
-You are an expert software architect.
+Generate professional GitHub repository documentation.
 
-Analyze the repository carefully.
+Include:
+1. Project overview
+2. Main functionality
+3. Tech stack
+4. Important files
+5. Architecture summary
+6. Workflow explanation
+7. Core modules
+8. Repository insights
 
-Generate:
-
-1. Project Overview
-2. Main Features
-3. Technologies Used
-4. Architecture Explanation
-5. Folder Structure Summary
-6. Setup Instructions
-7. Important Components
-
-Explain professionally and clearly.
-
-Context:
+Repository Context:
 {context}
 """
 
-
-    response = llm.invoke(prompt)
+    response = llm.invoke(
+        prompt
+    )
 
     return response.content

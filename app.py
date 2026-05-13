@@ -1,7 +1,11 @@
+import os
 import streamlit as st
 
+from github_loader import load_repository
+
 from rag_pipeline import (
-    process_repository,
+    create_vectorstore,
+    load_vectorstore,
     ask_question,
     generate_documentation
 )
@@ -98,7 +102,7 @@ st.markdown(
 )
 
 # =========================
-# Repository URL
+# Repository URL Input
 # =========================
 
 repo_url = st.text_input(
@@ -107,14 +111,7 @@ repo_url = st.text_input(
 )
 
 # =========================
-# Session State
-# =========================
-
-if "vectorstore" not in st.session_state:
-    st.session_state.vectorstore = None
-
-# =========================
-# Buttons Row
+# Buttons
 # =========================
 
 col1, col2 = st.columns(2)
@@ -149,32 +146,89 @@ if process_clicked:
             "Processing repository..."
         ):
 
-            vectorstore = process_repository(
-                repo_url
-            )
+            try:
 
-            st.session_state.vectorstore = (
-                vectorstore
-            )
+                # Extract repository name
+                repo_name = repo_url.split("/")[-1]
 
-            st.success(
-                "Repository processed successfully!"
-            )
+                # Local repository path
+                repo_path = f"repos/{repo_name}"
+
+                # Clone only if repository does not exist
+                if not os.path.exists(repo_path):
+
+                    os.system(
+                        f"git clone {repo_url} {repo_path}"
+                    )
+
+                # Load repository documents
+                documents = load_repository(
+                    repo_path,
+                    repo_name
+                )
+
+                # Create vectorstore
+                create_vectorstore(
+                    documents,
+                    repo_name
+                )
+
+                st.success(
+                    f"{repo_name} processed successfully!"
+                )
+
+            except Exception as e:
+
+                st.error(
+                    f"Error processing repository: {e}"
+                )
+
+# =========================
+# Repository Selector
+# =========================
+
+available_repos = []
+
+if os.path.exists("vectorstores"):
+
+    available_repos = os.listdir(
+        "vectorstores"
+    )
+
+# Add placeholder option
+repo_options = (
+    ["-- Select Repository --"]
+    + available_repos
+)
+
+selected_repo = st.selectbox(
+    "Select Repository",
+    repo_options
+)
+
+# Prevent automatic selection
+if selected_repo == "-- Select Repository --":
+
+    selected_repo = None
 
 # =========================
 # Generate Documentation
 # =========================
 
-if doc_clicked:
+if doc_clicked and selected_repo:
 
-    if st.session_state.vectorstore:
+    with st.spinner(
+        "Generating documentation..."
+    ):
 
-        with st.spinner(
-            "Generating documentation..."
-        ):
+        try:
+
+            vectorstore = load_vectorstore(
+                selected_repo
+            )
 
             docs = generate_documentation(
-                st.session_state.vectorstore
+                vectorstore
             )
 
             st.markdown("---")
@@ -185,6 +239,12 @@ if doc_clicked:
 
             st.markdown(docs)
 
+        except Exception as e:
+
+            st.error(
+                f"Documentation Error: {e}"
+            )
+
 # =========================
 # Workflow
 # =========================
@@ -193,6 +253,7 @@ st.markdown(
     """
 ✓ Enter Repository URL  
 ✓ Process Repository  
+✓ Select Repository  
 ✓ Generate Documentation  
 ✓ Ask Questions
 """
@@ -206,7 +267,7 @@ question = st.chat_input(
     "Ask questions about the repository..."
 )
 
-if question and st.session_state.vectorstore:
+if question and selected_repo:
 
     with st.chat_message("user"):
 
@@ -216,9 +277,33 @@ if question and st.session_state.vectorstore:
 
         with st.spinner("Thinking..."):
 
-            answer = ask_question(
-                st.session_state.vectorstore,
-                question
-            )
+            try:
 
-            st.markdown(answer)
+                # Load selected vectorstore
+                vectorstore = load_vectorstore(
+                    selected_repo
+                )
+
+                # Ask question
+                answer = ask_question(
+                    vectorstore,
+                    question
+                )
+
+                st.markdown(answer)
+
+            except Exception as e:
+
+                st.error(
+                    f"Error: {e}"
+                )
+
+# =========================
+# No Repository Selected
+# =========================
+
+if not selected_repo:
+
+    st.info(
+        "Please select a repository to start querying."
+    )
