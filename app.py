@@ -29,6 +29,14 @@ if "response_cache" not in st.session_state:
     st.session_state.response_cache = {}
 
 # =========================
+# Chat Memory
+# =========================
+
+if "chat_history" not in st.session_state:
+
+    st.session_state.chat_history = []
+
+# =========================
 # Clean UI CSS
 # =========================
 
@@ -154,10 +162,10 @@ if process_clicked:
                 # Extract repository name
                 repo_name = repo_url.split("/")[-1]
 
-                # Local repository path
+                # Repository local path
                 repo_path = f"repos/{repo_name}"
 
-                # Clone only if repository does not exist
+                # Clone repository if not already exists
                 if not os.path.exists(repo_path):
 
                     os.system(
@@ -294,13 +302,16 @@ if question and selected_repo:
 
             try:
 
-                # Create unique cache key
+                # =========================
+                # Cache Key
+                # =========================
+
                 cache_key = (
                     f"{selected_repo}:{question}"
                 )
 
                 # =========================
-                # Response Cache Check
+                # Response Cache
                 # =========================
 
                 if cache_key in st.session_state.response_cache:
@@ -322,10 +333,11 @@ if question and selected_repo:
                         selected_repo
                     )
 
-                    # Generate answer
+                    # Ask question with chat memory
                     answer = ask_question(
                         vectorstore,
-                        question
+                        question,
+                        st.session_state.chat_history
                     )
 
                     # Store response in cache
@@ -334,6 +346,32 @@ if question and selected_repo:
                     ] = answer
 
                 st.markdown(answer)
+
+                # =========================
+                # Store Chat Memory
+                # =========================
+
+                st.session_state.chat_history.append({
+                    "role": "user",
+                    "content": question
+                })
+
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": answer
+                })
+
+                # =========================
+                # Window Memory
+                # =========================
+
+                MAX_HISTORY = 20
+
+                if len(st.session_state.chat_history) > MAX_HISTORY:
+
+                    st.session_state.chat_history = (
+                        st.session_state.chat_history[-MAX_HISTORY:]
+                    )
 
             except Exception as e:
 
