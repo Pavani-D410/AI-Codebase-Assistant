@@ -7,9 +7,7 @@ from langchain_text_splitters import (
     RecursiveCharacterTextSplitter
 )
 
-from langchain_huggingface import (
-    HuggingFaceEmbeddings
-)
+
 
 from langchain_community.vectorstores import (
     FAISS
@@ -27,11 +25,12 @@ load_dotenv()
 # Cached Embedding Model
 # =========================
 
+from langchain_community.embeddings import HuggingFaceEmbeddings
 @st.cache_resource
 def get_embeddings():
 
     return HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2"
+        model_name="all-MiniLM-L6-v2"
     )
 
 embeddings = get_embeddings()

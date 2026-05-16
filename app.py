@@ -238,7 +238,43 @@ if selected_repo == "-- Select Repository --":
 # Generate Documentation
 # =========================
 
-if doc_clicked and selected_repo:
+if doc_clicked:
+
+    if not selected_repo:
+
+        st.warning(
+            "Please select a repository first."
+        )
+
+    else:
+
+        with st.spinner(
+            "Generating documentation..."
+        ):
+
+            try:
+
+                vectorstore = load_vectorstore(
+                    selected_repo
+                )
+
+                docs = generate_documentation(
+                    vectorstore
+                )
+
+                st.markdown("---")
+
+                st.subheader(
+                    "📘 Repository Documentation"
+                )
+
+                st.markdown(docs)
+
+            except Exception as e:
+
+                st.error(
+                    f"Documentation Error: {e}"
+                )
 
     with st.spinner(
         "Generating documentation..."
