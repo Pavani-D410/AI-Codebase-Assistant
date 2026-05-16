@@ -22,7 +22,9 @@ The system combines semantic retrieval, keyword retrieval, conversational memory
 - Repository-Aware Response Generation
 
 ---
+# System Architecture
 
+![Architecture Diagram](architecture.jpeg)
 
 # System Workflow
 
